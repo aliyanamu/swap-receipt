@@ -131,7 +131,7 @@ This invalidates the "afternoon build on ZeroMEV's free API" assumption. See sce
 - [ ] **Re-check ZeroMEV after ~2026-07-11** (3–5 days out): `curl -s -o /dev/null -w "%{http_code}\n" https://zeromev.org/` and the `data.zeromev.org/v1/mevBlock?block_number=18000000&count=1` endpoint. If 200 → sandwich verdict via Scenario A is back on.
 - [ ] **If ZeroMEV alive → add sandwich verdict** onto the shipped D page: serverless call to ZeroMEV, derive user loss, render the shareable "sandwiched −$X" line. Get a live JSON sample first to confirm field names.
 - [ ] **Else → prototype the Dune sandwich query (B)** to see if it's clean before committing to it as the supplier.
-- [ ] **Deploy:** wrap `server.js` as a Vercel/CF serverless fn + serve `index.html` static. Grab a domain (~$12/yr).
+- [x] **Deploy** (done 2026-07-09): live at https://swap-receipt.vercel.app — Vercel free tier, zero config (static `index.html` + `api/receipt.js`). Verified: API full-decodes ETH→token w/ slippage, errors on bad hash, page 200. Optional: grab a custom domain (~$12/yr).
 
 **Next move:** ship D (deploy) and add the sandwich hook the moment a supplier is alive — that line is the shareable core the whole top-of-funnel depends on.
 
