@@ -1,0 +1,81 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Swap Receipt</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 640px; margin: 6vh auto; padding: 0 20px; }
+  h1 { font-size: 1.6rem; margin-bottom: .2em; }
+  .sub { opacity: .7; margin-top: 0; }
+  form { display: flex; gap: 8px; margin: 1.5em 0; }
+  input { flex: 1; padding: 10px; font: inherit; border: 1px solid #8886; border-radius: 8px; background: transparent; color: inherit; }
+  button { padding: 10px 16px; font: inherit; border: 0; border-radius: 8px; background: #4a7; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  #out { margin-top: 1em; }
+  .card { border: 1px solid #8884; border-radius: 12px; padding: 16px 18px; margin-top: 12px; }
+  .leg { display: flex; justify-content: space-between; padding: 2px 0; }
+  .big { font-size: 1.25rem; font-weight: 600; }
+  .tag { font-size: .8rem; opacity: .7; }
+  .exact { color: #4a7; }
+  .est { color: #d94; }
+  .err { color: #c44; }
+  code { opacity: .6; word-break: break-all; }
+</style>
+
+<h1>Swap Receipt</h1>
+<p class="sub">Paste an Ethereum swap tx hash. Get a plain-English post-mortem — what you received, gas paid, and estimated slippage.</p>
+
+<form id="f">
+  <input id="h" placeholder="0x… transaction hash" autocomplete="off" spellcheck="false" />
+  <button id="go">Check</button>
+</form>
+
+<div id="out"></div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const usd = (n) => (n == null ? "—" : "$" + n.toLocaleString(undefined, { maximumFractionDigits: 2 }));
+  const amt = (n) => (n == null ? "?" : n.toLocaleString(undefined, { maximumSignificantDigits: 6 }));
+
+  function leg(l) {
+    return `<div class="leg"><span>${amt(l.amount)} ${l.symbol}</span><span>${usd(l.usd)}</span></div>`;
+  }
+
+  function render(d) {
+    if (d.error) return `<div class="card err">${d.error}</div>`;
+    if (!d.isSwap)
+      return `<div class="card"><p>${d.note}</p><div class="leg"><span>Gas paid</span><span class="exact">${d.gasEth.toFixed(5)} ETH</span></div></div>`;
+
+    let html = "<div class='card'>";
+    html += `<div class="tag">You sent</div>${d.inputs.map(leg).join("") || "<em>routed — couldn't decode input</em>"}`;
+    html += `<div class="tag" style="margin-top:10px">You received</div>${d.outputs.map(leg).join("") || "<em>sent as ETH internally — couldn't decode output</em>"}`;
+    html += "</div>";
+
+    html += `<div class="card"><div class="leg big"><span>Gas paid</span><span class="exact">${usd(d.gasUsd)}</span></div><div class="tag">${d.gasEth.toFixed(5)} ETH · exact, from the receipt</div></div>`;
+
+    if (d.slippagePct != null) {
+      const cls = d.slippagePct > 1 ? "est" : "exact";
+      html += `<div class="card"><div class="leg big"><span>Est. slippage</span><span class="${cls}">${d.slippagePct.toFixed(2)}%</span></div><div class="tag est">estimate vs mid-price — folds in price impact, fees & any MEV. Not exact.</div>`;
+      if (d.slippagePct > 1)
+        html += `<p class="tag">Avoidable? Set tighter slippage (e.g. 0.5%) and route through <a href="https://mevblocker.io" target="_blank">MEV Blocker</a> to keep more next time.</p>`;
+      html += "</div>";
+    } else if (d.partial) {
+      html += `<div class="card tag">This swap routed through an aggregator or unwrapped to ETH internally, so we can't reconstruct both sides from the logs — slippage estimate skipped. Gas above is still exact.</div>`;
+    }
+    return html;
+  }
+
+  $("f").onsubmit = async (e) => {
+    e.preventDefault();
+    const hash = $("h").value.trim();
+    $("out").innerHTML = "<p>Checking…</p>";
+    $("go").disabled = true;
+    try {
+      const d = await fetch("/api/receipt?hash=" + encodeURIComponent(hash)).then((r) => r.json());
+      $("out").innerHTML = render(d);
+    } catch (err) {
+      $("out").innerHTML = `<div class="card err">Network error: ${err.message}</div>`;
+    }
+    $("go").disabled = false;
+  };
+</script>
