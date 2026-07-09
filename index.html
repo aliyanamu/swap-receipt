@@ -79,11 +79,37 @@
     try {
       const d = await fetch(`/api/receipt?chain=${chain}&hash=` + encodeURIComponent(hash)).then((r) => r.json());
       $("out").innerHTML = render(d);
-      if (d.isSwap) sandwich(chain, hash);
+      if (d.isSwap) { sandwich(chain, hash); shareBar(chain, hash); }
     } catch (err) {
       $("out").innerHTML = `<div class="card err">Network error: ${err.message}</div>`;
     }
     $("go").disabled = false;
+  }
+
+  // Share the /tx/ link — native share sheet on mobile (Twitter/Telegram/etc),
+  // clipboard copy on desktop. This is what actually spreads the card.
+  function shareBar(chain, hash) {
+    const url = `${location.origin}/tx/${chain}/${hash}`;
+    const bar = document.createElement("div");
+    bar.className = "card";
+    bar.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:12px";
+    const label = document.createElement("span");
+    label.className = "tag";
+    label.textContent = "Share this receipt";
+    const btn = document.createElement("button");
+    btn.textContent = navigator.share ? "Share" : "Copy link";
+    btn.onclick = async () => {
+      try {
+        if (navigator.share) await navigator.share({ title: "Swap Receipt", url });
+        else {
+          await navigator.clipboard.writeText(url);
+          btn.textContent = "Copied ✓";
+          setTimeout(() => (btn.textContent = "Copy link"), 1500);
+        }
+      } catch { /* user dismissed share sheet */ }
+    };
+    bar.append(label, btn);
+    $("out").appendChild(bar);
   }
 
   // Second phase: slow Dune sandwich flag. Binary only — the $-loss can't be

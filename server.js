@@ -18,10 +18,14 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/receipt") {
     try {
       const hash = url.searchParams.get("hash") || "";
-      const data = url.searchParams.get("sandwich")
+      const isSandwich = url.searchParams.get("sandwich");
+      const data = isSandwich
         ? { hash, sandwiched: await checkSandwich(hash) }
-        : await buildReceipt(hash);
-      res.writeHead(200, { "content-type": "application/json" });
+        : await buildReceipt(hash, url.searchParams.get("chain") || "ethereum");
+      const final = isSandwich ? data.sandwiched !== null : true;
+      const headers = { "content-type": "application/json" };
+      if (final) headers["cache-control"] = "public, max-age=31536000, s-maxage=31536000, immutable";
+      res.writeHead(200, headers);
       res.end(JSON.stringify(data));
     } catch (e) {
       res.writeHead(400, { "content-type": "application/json" });
