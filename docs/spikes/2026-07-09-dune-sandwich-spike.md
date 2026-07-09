@@ -55,11 +55,39 @@ Dune is a **batch analytics API**, not a low-latency per-tx lookup:
 
 Either keeps the page's request path key-free and fast; Dune sits behind a cache.
 
-**Go / No-go:** **Go**, with the cache. The data is real and the binary "sandwiched?" is
-clean. The only compromise is the loss $ being a labelled estimate — which our tool already
-does for slippage, so it's on-brand, not a new sin.
+## ⚠️ LIVE VALIDATION (2026-07-09) — loss derivation FAILS
 
-## Next step to de-risk fully
-Needs a **`DUNE_API_KEY`** (free signup) to run `query.sql` against a known sandwiched tx and
-confirm the loss-derivation join returns sane numbers. Query is written and ready in
-`docs/spikes/query.sql`. Provide a key and I'll validate live.
+Ran the query live against a real recent Ethereum sandwich (public query, ~6–9s/execution,
+credit-metered, flaky connectivity from our host). Result on victim
+`0xc83fc522…e5f4` (ETH→USDT):
+
+| field | value |
+|---|---|
+| victim trade size | **$1,383** |
+| attacker front-run leg | $175,981 |
+| attacker back-run leg | $196,522 |
+| `back − front` "extracted" | **$20,541** |
+
+**A $1,383 swap cannot lose $20,541.** `back − front` is the attacker's gross across the
+**whole bracket** (many victims + the attacker's own principal), not this victim's loss. A
+single victim's loss is bounded by their trade size, so the derivation is off by ~15×.
+There is no per-victim split in these tables and no counterfactual price — honest per-victim
+loss needs pool-state replay at block−1 (= Scenario C, weeks, forbidden by the hard rule).
+
+## Revised verdict
+
+| Need | Status |
+|---|---|
+| **"Were you sandwiched?" (yes/no)** | ✅ Clean — victim tx is/ isn't in `dex.sandwiched`. Confirmed live. |
+| **Victim trade size ($)** | ✅ Clean — `amount_usd` on the row. |
+| **"You lost $X"** | ❌ **Not obtainable honestly** from Dune. `back − front` is bracket-level attacker gross, not per-victim loss. |
+
+**Go / No-go:** **Partial go.** Ship the **binary sandwich flag** (cached) — it's clean, honest,
+and "⚠️ this swap was sandwiched" is still shareable. **Do NOT show a dollar loss** — the data
+can't back it, and the plan's own rule forbids claiming precision we can't back. The exact
+"−$X" the plan wanted is off the table until someone does real per-victim attribution.
+
+## What to build (if we proceed)
+- Cache-on-lookup: Dune once per unseen tx → store `{sandwiched: bool}` in KV. Show a flag,
+  optionally the victim trade size. No dollar-loss claim.
+- Skipped: `query.sql`'s loss columns — leave the membership check only.
