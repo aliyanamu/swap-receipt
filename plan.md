@@ -2,11 +2,13 @@
 
 _Last updated: 2026-07-08_
 
-> **Status: Scenario D shipped** (`server.js` + `index.html`, no deps, no API keys).
-> Public RPC + DefiLlama. Gas exact, slippage estimate, MEV Blocker nudge. ZeroMEV still
-> dead (530). Build plan: `docs/plans/2026-07-08-feat-swap-receipt-mvp-scenario-d-plan.md`.
-> **Known gap:** token→ETH & aggregator swaps degrade to gas-only (ETH output is internal;
-> full decode needs tracing = out of scope). Next: add sandwich verdict when a supplier revives.
+> **Status: live** at https://swap-receipt.vercel.app — gas (exact) + slippage (est) +
+> **binary sandwich flag** (Dune `dex.sandwiched`, cached) + multi-chain + `/tx/` deep-links.
+> No dollar-loss shown: it can't be derived honestly from Dune — bracket gross ≠ per-victim
+> loss, off ~15× live (see `docs/spikes/2026-07-09-dune-sandwich-spike.md`). ZeroMEV still dead.
+> **Known gaps:** token→ETH & aggregator swaps degrade to gas-only (ETH output is internal,
+> tracing = out of scope); sandwich credit-cache resets on cold start (upgrade = Vercel KV).
+> **Next (plan's #1 value): shareable card** so a sandwiched swap unfurls as a screenshot.
 
 Paste a DEX swap tx hash → plain-English post-mortem: what you received, gas paid,
 whether you got sandwiched, and whether the loss was avoidable + how to avoid it next time.
