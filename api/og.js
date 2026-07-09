@@ -1,22 +1,28 @@
-// OG card: 1200x630 PNG summarizing a swap, including the sandwich verdict.
-// Node runtime so it reuses lib.js (buildReceipt/checkSandwich).
-// checkSandwich is cached; worst case ~9s live — see spike note on crawler timeouts.
-const { ImageResponse } = require("@vercel/og");
-const { buildReceipt, checkSandwich } = require("../lib");
+// OG card: 1200x630 PNG summarizing a swap + the sandwich verdict.
+// Edge runtime — the supported path for @vercel/og's rasterizer. lib.js is
+// edge-safe (only fetch/BigInt/Map/process.env). checkSandwich is cached;
+// worst case ~9s live — see spike note on crawler timeouts.
+import { ImageResponse } from "@vercel/og";
+import lib from "../lib";
+const { buildReceipt, checkSandwich } = lib;
+
+export const config = { runtime: "edge" };
 
 const h = (type, style, children) => ({ type, props: { style, children } });
 const usd = (n) => (n == null ? "—" : "$" + n.toLocaleString("en-US", { maximumFractionDigits: 2 }));
 
-module.exports = async (req, res) => {
-  const hash = req.query.hash || "";
-  const chain = req.query.chain || "ethereum";
+export default async function handler(req) {
+  const { searchParams } = new URL(req.url);
+  const hash = searchParams.get("hash") || "";
+  const chain = searchParams.get("chain") || "ethereum";
+
   let d = null, sandwiched = null;
   try {
     [d, sandwiched] = await Promise.all([
       buildReceipt(hash, chain).catch(() => null),
       checkSandwich(hash),
     ]);
-  } catch { /* fall through to a generic card */ }
+  } catch { /* generic card below */ }
 
   const pair = d && d.isSwap
     ? `${(d.inputs[0] || {}).symbol || "?"} → ${(d.outputs[0] || {}).symbol || "?"}`
@@ -50,9 +56,8 @@ module.exports = async (req, res) => {
     h("div", { display: "flex", fontSize: 30, color: "#8a94a6" }, footer),
   ]);
 
-  const img = new ImageResponse(el, { width: 1200, height: 630 });
-  const buf = Buffer.from(await img.arrayBuffer());
-  res.setHeader("content-type", "image/png");
-  res.setHeader("cache-control", "public, max-age=86400, s-maxage=86400");
-  res.end(buf);
-};
+  return new ImageResponse(el, {
+    width: 1200, height: 630,
+    headers: { "cache-control": "public, max-age=86400, s-maxage=86400" },
+  });
+}

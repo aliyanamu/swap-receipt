@@ -2,7 +2,6 @@
   "rewrites": [{ "source": "/tx/(.*)", "destination": "/api/page" }],
   "functions": {
     "api/receipt.js": { "maxDuration": 60 },
-    "api/og.js": { "maxDuration": 60 },
     "api/page.js": { "includeFiles": "index.html" }
   }
 }
