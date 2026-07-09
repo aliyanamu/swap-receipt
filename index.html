@@ -65,9 +65,10 @@
     return html;
   }
 
-  $("f").onsubmit = async (e) => {
-    e.preventDefault();
-    const hash = $("h").value.trim();
+  async function check(hash, push) {
+    if (!hash) return;
+    if (push) history.pushState({}, "", "/tx/" + hash);
+    $("h").value = hash;
     $("out").innerHTML = "<p>Checking…</p>";
     $("go").disabled = true;
     try {
@@ -77,5 +78,15 @@
       $("out").innerHTML = `<div class="card err">Network error: ${err.message}</div>`;
     }
     $("go").disabled = false;
+  }
+
+  $("f").onsubmit = (e) => {
+    e.preventDefault();
+    check($("h").value.trim(), true);
   };
+
+  // On load / back-forward: pull hash from /tx/0x… and run it.
+  const fromUrl = () => check(decodeURIComponent(location.pathname.replace(/^\/tx\//, "")).trim(), false);
+  addEventListener("popstate", fromUrl);
+  if (location.pathname.startsWith("/tx/")) fromUrl();
 </script>
