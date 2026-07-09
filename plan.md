@@ -8,7 +8,12 @@ _Last updated: 2026-07-08_
 > loss, off ~15× live (see `docs/spikes/2026-07-09-dune-sandwich-spike.md`). ZeroMEV still dead.
 > **Known gaps:** token→ETH & aggregator swaps degrade to gas-only (ETH output is internal,
 > tracing = out of scope); sandwich credit-cache resets on cold start (upgrade = Vercel KV).
-> **Next (plan's #1 value): shareable card** so a sandwiched swap unfurls as a screenshot.
+> **Shareable card DONE:** `/tx/<chain>/<hash>` unfurls with an OG PNG showing the verdict
+> (`api/og.js` edge + `@vercel/og`, `api/page.js` injects per-tx meta). Web Share button spreads
+> it. **Caching:** confirmed results are immutable → `Cache-Control: immutable` + Vercel CDN
+> (verified HIT), so Dune credits burn ~once per tx globally.
+> **Next (optional):** Vercel KV to bulletproof Twitter unfurls (verdict precompute) + WETH-leg
+> decode for token→ETH partials. Core is feature-complete.
 
 Paste a DEX swap tx hash → plain-English post-mortem: what you received, gas paid,
 whether you got sandwiched, and whether the loss was avoidable + how to avoid it next time.
