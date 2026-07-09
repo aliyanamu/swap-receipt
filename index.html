@@ -79,10 +79,33 @@
     try {
       const d = await fetch(`/api/receipt?chain=${chain}&hash=` + encodeURIComponent(hash)).then((r) => r.json());
       $("out").innerHTML = render(d);
+      if (d.isSwap) sandwich(chain, hash);
     } catch (err) {
       $("out").innerHTML = `<div class="card err">Network error: ${err.message}</div>`;
     }
     $("go").disabled = false;
+  }
+
+  // Second phase: slow Dune sandwich flag. Binary only — the $-loss can't be
+  // derived honestly (see docs/spikes), so we never show a dollar amount here.
+  async function sandwich(chain, hash) {
+    const box = document.createElement("div");
+    box.className = "card tag";
+    box.textContent = "Checking for a sandwich attack…";
+    $("out").appendChild(box);
+    try {
+      const s = await fetch(`/api/receipt?sandwich=1&chain=${chain}&hash=` + encodeURIComponent(hash)).then((r) => r.json());
+      if (s.sandwiched === true) {
+        box.className = "card";
+        box.innerHTML = `<div class="big err">🥪 You got sandwiched.</div><p class="tag">An MEV bot front-ran and back-ran this swap to skim value from it. Avoid it next time: route through <a href="https://mevblocker.io" target="_blank">MEV Blocker</a> or use a private RPC.</p>`;
+      } else if (s.sandwiched === false) {
+        box.innerHTML = `<span class="exact">✓ No sandwich attack detected on this swap.</span>`;
+      } else {
+        box.remove(); // unknown (no key / Dune error) — say nothing rather than guess
+      }
+    } catch {
+      box.remove();
+    }
   }
 
   $("f").onsubmit = (e) => {

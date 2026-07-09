@@ -5,7 +5,7 @@
 
 const http = require("http");
 const fs = require("fs");
-const { buildReceipt, decodeSwap, TRANSFER, SWAP_V3 } = require("./lib");
+const { buildReceipt, checkSandwich, decodeSwap, TRANSFER, SWAP_V3 } = require("./lib");
 
 const PAGE = fs.readFileSync(__dirname + "/index.html");
 
@@ -17,7 +17,10 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === "/api/receipt") {
     try {
-      const data = await buildReceipt(url.searchParams.get("hash") || "", url.searchParams.get("chain") || "ethereum");
+      const hash = url.searchParams.get("hash") || "";
+      const data = url.searchParams.get("sandwich")
+        ? { hash, sandwiched: await checkSandwich(hash) }
+        : await buildReceipt(hash);
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(data));
     } catch (e) {

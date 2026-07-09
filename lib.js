@@ -150,4 +150,43 @@ async function buildReceipt(hash, chainName = "ethereum") {
   };
 }
 
-module.exports = { buildReceipt, decodeSwap, TRANSFER, SWAP_V3, SWAP_V2 };
+// --- Sandwich flag via Dune (binary only; the $-loss isn't obtainable honestly, see
+// docs/spikes). Slow (~6-9s) + credit-metered, so the frontend calls this separately
+// AFTER rendering the fast receipt. Returns true/false, or null if unknown (no key/error).
+// ponytail: warm-instance Map cache — immutable per tx. Resets on cold start; swap for
+// Vercel KV only if free-tier credits actually burn.
+const SANDWICH_QUERY_ID = process.env.DUNE_SANDWICH_QUERY_ID || "7922992";
+const sandwichCache = new Map();
+
+async function checkSandwich(hash) {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) return null;
+  if (!process.env.DUNE_API_KEY) return null;
+  const key = hash.toLowerCase();
+  if (sandwichCache.has(key)) return sandwichCache.get(key);
+
+  const H = { "X-Dune-API-Key": process.env.DUNE_API_KEY, "content-type": "application/json" };
+  const api = "https://api.dune.com/api/v1";
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    let r = await fetch(`${api}/query/${SANDWICH_QUERY_ID}/execute`, {
+      method: "POST", headers: H, body: JSON.stringify({ query_parameters: { tx_hash: key } }),
+    }).then((x) => x.json());
+    if (!r.execution_id) return null;
+    const eid = r.execution_id;
+    let state = "";
+    for (let i = 0; i < 12; i++) { // ~24s ceiling
+      await sleep(2000);
+      state = (await fetch(`${api}/execution/${eid}/status`, { headers: H }).then((x) => x.json())).state || "";
+      if (state.endsWith("COMPLETED") || state.endsWith("FAILED")) break;
+    }
+    if (!state.endsWith("COMPLETED")) return null;
+    const res = await fetch(`${api}/execution/${eid}/results`, { headers: H }).then((x) => x.json());
+    const sandwiched = (res.result?.rows?.length || 0) > 0;
+    sandwichCache.set(key, sandwiched); // cache only real answers, never errors
+    return sandwiched;
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { buildReceipt, checkSandwich, decodeSwap, TRANSFER, SWAP_V3, SWAP_V2 };
