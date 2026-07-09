@@ -26,6 +26,10 @@
 <p class="sub">Paste an Ethereum swap tx hash. Get a plain-English post-mortem — what you received, gas paid, and estimated slippage.</p>
 
 <form id="f">
+  <select id="c" title="Chain">
+    <option value="ethereum">Ethereum</option>
+    <option value="arbitrum">Arbitrum</option>
+  </select>
   <input id="h" placeholder="0x… transaction hash" autocomplete="off" spellcheck="false" />
   <button id="go">Check</button>
 </form>
@@ -65,14 +69,15 @@
     return html;
   }
 
-  async function check(hash, push) {
+  async function check(hash, chain, push) {
     if (!hash) return;
-    if (push) history.pushState({}, "", "/tx/" + hash);
+    if (push) history.pushState({}, "", `/tx/${chain}/${hash}`);
     $("h").value = hash;
+    $("c").value = chain;
     $("out").innerHTML = "<p>Checking…</p>";
     $("go").disabled = true;
     try {
-      const d = await fetch("/api/receipt?hash=" + encodeURIComponent(hash)).then((r) => r.json());
+      const d = await fetch(`/api/receipt?chain=${chain}&hash=` + encodeURIComponent(hash)).then((r) => r.json());
       $("out").innerHTML = render(d);
     } catch (err) {
       $("out").innerHTML = `<div class="card err">Network error: ${err.message}</div>`;
@@ -82,11 +87,15 @@
 
   $("f").onsubmit = (e) => {
     e.preventDefault();
-    check($("h").value.trim(), true);
+    check($("h").value.trim(), $("c").value, true);
   };
 
-  // On load / back-forward: pull hash from /tx/0x… and run it.
-  const fromUrl = () => check(decodeURIComponent(location.pathname.replace(/^\/tx\//, "")).trim(), false);
+  // On load / back-forward: /tx/<chain>/<hash>, or legacy /tx/<hash> (= ethereum).
+  function fromUrl() {
+    const p = location.pathname.replace(/^\/tx\//, "").split("/").filter(Boolean).map(decodeURIComponent);
+    const [chain, hash] = p.length > 1 ? p : ["ethereum", p[0]];
+    check((hash || "").trim(), chain, false);
+  }
   addEventListener("popstate", fromUrl);
   if (location.pathname.startsWith("/tx/")) fromUrl();
 </script>

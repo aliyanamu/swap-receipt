@@ -6,13 +6,18 @@
 // so they degrade to gas-exact + partial legs. Add trace_transaction only if
 // that case turns out to matter — the plan forbids full router decoding.
 
-const RPC = process.env.RPC || "https://ethereum-rpc.publicnode.com";
+// ponytail: only ETH-native chains — gas + native price both key off ETH.
+// Add a non-ETH chain (Polygon=MATIC) => also give it a `native` coingecko id.
+const CHAINS = {
+  ethereum: { rpc: "https://ethereum-rpc.publicnode.com", llama: "ethereum" },
+  arbitrum: { rpc: "https://arbitrum-one-rpc.publicnode.com", llama: "arbitrum" },
+};
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const SWAP_V3 = "0xc42079f94a6350d7e6235f29174924f928cc2ac818eb64fed8004e115fbcca67";
 const SWAP_V2 = "0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822";
 
-const rpc = (method, params) =>
-  fetch(RPC, {
+const rpc = (url, method, params) =>
+  fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json", "user-agent": "Mozilla/5.0" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
@@ -57,9 +62,9 @@ function decodeSwap(receipt, tx) {
 }
 
 // DefiLlama: symbol + decimals + USD price at a timestamp, one call for many tokens.
-async function prices(tokens, ts) {
+async function prices(tokens, ts, llama) {
   const keys = tokens.map((t) =>
-    t === "ETH" ? "coingecko:ethereum" : `ethereum:${t}`
+    t === "ETH" ? "coingecko:ethereum" : `${llama}:${t}`
   );
   const url = `https://coins.llama.fi/prices/historical/${ts}/${keys.join(",")}`;
   const j = await fetch(url).then((r) => r.json());
@@ -76,11 +81,13 @@ async function prices(tokens, ts) {
   return out;
 }
 
-async function buildReceipt(hash) {
+async function buildReceipt(hash, chainName = "ethereum") {
   if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error("Not a valid tx hash.");
+  const chain = CHAINS[chainName];
+  if (!chain) throw new Error(`Unsupported chain "${chainName}". Try: ${Object.keys(CHAINS).join(", ")}.`);
   const [receipt, tx] = await Promise.all([
-    rpc("eth_getTransactionReceipt", [hash]),
-    rpc("eth_getTransactionByHash", [hash]),
+    rpc(chain.rpc, "eth_getTransactionReceipt", [hash]),
+    rpc(chain.rpc, "eth_getTransactionByHash", [hash]),
   ]);
   if (!receipt) throw new Error("Transaction not found (or not yet mined).");
   if (receipt.status === "0x0") throw new Error("This transaction reverted (failed).");
@@ -98,7 +105,7 @@ async function buildReceipt(hash) {
       note: "This doesn't look like a DEX swap — no Swap event found.",
     };
 
-  const block = await rpc("eth_getBlockByNumber", [receipt.blockNumber, false]);
+  const block = await rpc(chain.rpc, "eth_getBlockByNumber", [receipt.blockNumber, false]);
   const ts = parseInt(block.timestamp, 16);
 
   const toks = [
@@ -108,7 +115,7 @@ async function buildReceipt(hash) {
       ...decoded.outputs.map((x) => x.token),
     ]),
   ];
-  const px = await prices(toks, ts);
+  const px = await prices(toks, ts, chain.llama);
 
   const value = (legs) =>
     legs.map((l) => {
